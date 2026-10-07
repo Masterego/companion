@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16131f">
+<title>Companion</title>
+<style>
+:root{--bg:#16131f;--panel:#1f1b2d;--line:#322c47;--text:#ece8f4;--dim:#9a93b3;--accent:#d9708f;--me:#2b2540;box-sizing:border-box}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:17px;margin:0;flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button{font:inherit;color:var(--text);background:var(--line);border:0;border-radius:10px;padding:9px 13px;cursor:pointer}
+button.main{background:var(--accent);color:#1a0f15;font-weight:600}
+button.ghost{background:transparent;color:var(--dim)}
+button:disabled{opacity:.5}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#chat{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:92%;padding:10px 13px;border-radius:14px;white-space:pre-wrap;word-wrap:break-word;font-family:Georgia,"Times New Roman",serif;font-size:17px;line-height:1.55}
+.msg.ai{align-self:flex-start;background:var(--panel);border:1px solid var(--line)}
+.msg.user{align-self:flex-end;background:var(--me)}
+.msg.err{align-self:center;background:#3a1f2a;color:#ffb8c9;font:14px/1.4 system-ui,sans-serif;max-width:100%}
+.msg.wait{color:var(--dim);font-style:italic}
+.empty{margin:auto;text-align:center;color:var(--dim);padding:20px}
+.bar{display:flex;gap:6px;padding:4px 12px 0}
+.bar button{font-size:13px;padding:5px 9px}
+form{display:flex;gap:8px;padding:8px 12px 12px}
+textarea,input{width:100%;font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+form textarea{resize:none;max-height:140px}
+#panel{position:fixed;inset:0;background:var(--bg);overflow-y:auto;padding:calc(14px + env(safe-area-inset-top,0px)) 14px calc(30px + env(safe-area-inset-bottom,0px));display:none;z-index:5}
+#panel.open{display:block}
+#panel h2{font-size:17px;margin:20px 0 8px}
+#panel label{display:block;color:var(--dim);font-size:14px;margin:12px 0 4px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.note{color:var(--dim);font-size:13px;margin:6px 0 0}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--accent);color:#1a0f15;padding:8px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Companion</h1>
+  <button class="ghost" id="bSet">Impostazioni</button>
+</header>
+<div id="chat"></div>
+<div class="bar">
+  <button class="ghost" id="bRegen">Rigenera</button>
+  <button class="ghost" id="bDel">Elimina ultimo</button>
+  <button class="ghost" id="bNew">Nuova storia</button>
+</div>
+<form id="form">
+  <textarea id="input" rows="1" placeholder="Scrivi..."></textarea>
+  <button class="main" id="bSend" type="submit">Invia</button>
+</form>
+
+<div id="panel">
+  <div class="row" style="margin-top:0;justify-content:space-between">
+    <strong style="font-size:19px">Impostazioni</strong>
+    <button class="main" id="bClose">Salva e chiudi</button>
+  </div>
+
+  <h2>Modello</h2>
+  <label for="url">Indirizzo del provider</label>
+  <input id="url" autocomplete="off" autocapitalize="off">
+  <label for="key">Chiave API</label>
+  <input id="key" type="password" autocomplete="off" autocapitalize="off" placeholder="sk-or-...">
+  <label for="model">Nome del modello</label>
+  <input id="model" list="models" autocomplete="off" autocapitalize="off">
+  <datalist id="models"></datalist>
+  <div class="row"><button id="bModels">Carica modelli gratuiti (OpenRouter)</button></div>
+  <p class="note">La chiave resta salvata solo su questo telefono.</p>
+  <label for="temp">Creatività (temperatura): <span id="tv"></span></label>
+  <input id="temp" type="range" min="0" max="1.5" step="0.05">
+  <label for="hist">Messaggi recenti inviati al modello</label>
+  <input id="hist" type="number" min="4" max="100">
+
+  <h2>Personaggio</h2>
+  <label for="cName">Nome</label>
+  <input id="cName">
+  <label for="cDesc">Aspetto, carattere, modo di parlare</label>
+  <textarea id="cDesc" rows="6"></textarea>
+  <label for="cScene">Situazione iniziale e regole di stile</label>
+  <textarea id="cScene" rows="6"></textarea>
+  <label for="cFirst">Primo messaggio del personaggio</label>
+  <textarea id="cFirst" rows="3"></textarea>
+  <label for="uName">Il tuo nome nella storia</label>
+  <input id="uName">
+
+  <h2>Backup</h2>
+  <div class="row">
+    <button id="bExp">Esporta</button>
+    <button id="bImp">Importa</button>
+    <input id="file" type="file" accept=".json,application/json" hidden>
+  </div>
+  <p class="note">Se cancelli i dati di Chrome si perde tutto: esporta ogni tanto.</p>
+</div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const KEY='companion_v1';
+const DEF={
+  s:{url:'https://openrouter.ai/api/v1/chat/completions',key:'',model:'',temp:0.9,hist:30},
+  c:{name:'Aria',user:'Tu',
+     desc:'Donna di 27 anni, sarcastica e affettuosa, parla in modo diretto e spontaneo. Capelli castani corti, occhi verdi.',
+     scene:'Sera di pioggia, sei con lei nel suo appartamento, seduti sul divano. Racconta in terza persona al passato, con dialoghi. Mantieni coerenti luogo, posizioni, abbigliamento e oggetti. Non ridescrivere l\'aspetto fisico se non cambia. Varia l\'inizio di ogni risposta.',
+     first:'Aria sistemò il plaid sulle ginocchia e ti guardò. «Allora, di cosa vuoi parlare stasera?»'},
+  m:[]
+};
+let D;
+function load(){
+  try{const r=JSON.parse(localStorage.getItem(KEY));D=r?{s:{...DEF.s,...r.s},c:{...DEF.c,...r.c},m:r.m||[]}:structuredClone(DEF)}
+  catch(e){D=structuredClone(DEF)}
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){toast('Salvataggio non riuscito')}}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)}
+
+function render(){
+  $('title').textContent=D.c.name||'Companion';
+  const ch=$('chat');ch.innerHTML='';
+  if(!D.m.length){
+    const d=document.createElement('div');d.className='empty';
+    d.textContent='Nessuna storia in corso. Tocca "Nuova storia" per iniziare.';ch.appendChild(d)
+  }
+  D.m.forEach(m=>add(m.role==='user'?'user':'ai',m.content));
+  ch.scrollTop=ch.scrollHeight;
+}
+function add(cls,text){
+  const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;
+  $('chat').appendChild(d);$('chat').scrollTop=$('chat').scrollHeight;return d
+}
+function newStory(){
+  D.m=D.c.first?[{role:'assistant',content:D.c.first}]:[];save();render()
+}
+
+function systemPrompt(){
+  const c=D.c;
+  return `Sei il narratore e interpreti il personaggio "${c.name}" in una storia di roleplay con ${c.user||'Utente'}. Scrivi solo le azioni, i pensieri e le battute di ${c.name} e del mondo; non scrivere mai le azioni o le battute di ${c.user||'Utente'}.
+
+PERSONAGGIO:
+${c.desc}
+
+SITUAZIONE E STILE:
+${c.scene}
+
+REGOLE DI COERENZA: rispetta sempre luogo, posizioni, distanze, abbigliamento e oggetti già stabiliti nella conversazione. Non far usare oggetti che non sono a portata di mano e non far compiere gesti fisici impossibili dalla posizione attuale. Non ripetere le stesse descrizioni o le stesse frasi di apertura dei messaggi precedenti.`
+}
+
+let busy=false;
+async function ask(){
+  if(busy)return;
+  const s=D.s;
+  if(!s.key||!s.model){toast('Inserisci chiave e modello');openPanel();return}
+  busy=true;setBtns(true);
+  const w=add('ai wait','...');
+  const msgs=[{role:'system',content:systemPrompt()},...D.m.slice(-s.hist).map(m=>({role:m.role,content:m.content}))];
+  try{
+    const r=await fetch(s.url,{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.key,'X-Title':'Companion'},
+      body:JSON.stringify({model:s.model,messages:msgs,temperature:+s.temp,max_tokens:800})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error((j.error&&(j.error.message||JSON.stringify(j.error)))||('Errore '+r.status));
+    const t=j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
+    if(!t)throw new Error('Risposta vuota dal modello. Riprova o cambia modello.');
+    D.m.push({role:'assistant',content:t.trim()});save();
+  }catch(e){
+    w.remove();add('err','Errore: '+e.message);busy=false;setBtns(false);return
+  }
+  busy=false;setBtns(false);render()
+}
+function setBtns(b){['bSend','bRegen','bDel','bNew'].forEach(i=>$(i).disabled=b)}
+
+$('form').addEventListener('submit',e=>{
+  e.preventDefault();
+  const t=$('input').value.trim();if(!t||busy)return;
+  D.m.push({role:'user',content:t});save();
+  $('input').value='';$('input').style.height='auto';render();ask()
+});
+$('input').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
+$('bRegen').onclick=()=>{
+  if(busy||!D.m.length)return;
+  if(D.m[D.m.length-1].role==='assistant')D.m.pop();
+  if(!D.m.length||D.m[D.m.length-1].role!=='user'){toast('Niente da rigenerare');render();return}
+  save();render();ask()
+};
+$('bDel').onclick=()=>{if(busy||!D.m.length)return;D.m.pop();save();render()};
+$('bNew').onclick=()=>{if(busy)return;if(!D.m.length||confirm('Cancellare la storia attuale e ricominciare?'))newStory()};
+
+function openPanel(){
+  $('url').value=D.s.url;$('key').value=D.s.key;$('model').value=D.s.model;
+  $('temp').value=D.s.temp;$('tv').textContent=D.s.temp;$('hist').value=D.s.hist;
+  $('cName').value=D.c.name;$('cDesc').value=D.c.desc;$('cScene').value=D.c.scene;
+  $('cFirst').value=D.c.first;$('uName').value=D.c.user;
+  $('panel').classList.add('open')
+}
+$('bSet').onclick=openPanel;
+$('temp').oninput=e=>$('tv').textContent=e.target.value;
+$('bClose').onclick=()=>{
+  D.s.url=$('url').value.trim();D.s.key=$('key').value.trim();D.s.model=$('model').value.trim();
+  D.s.temp=+$('temp').value;D.s.hist=Math.max(4,+$('hist').value||30);
+  D.c.name=$('cName').value.trim()||'Personaggio';D.c.desc=$('cDesc').value;D.c.scene=$('cScene').value;
+  D.c.first=$('cFirst').value;D.c.user=$('uName').value.trim()||'Tu';
+  save();$('panel').classList.remove('open');render();toast('Salvato')
+};
+$('bModels').onclick=async()=>{
+  const b=$('bModels');b.disabled=true;
+  try{
+    const r=await fetch('https://openrouter.ai/api/v1/models');const j=await r.json();
+    const ids=(j.data||[]).map(m=>m.id).filter(i=>i.endsWith(':free')).sort();
+    $('models').innerHTML=ids.map(i=>`<option value="${i}">`).join('');
+    toast(ids.length+' modelli gratuiti: tocca il campo Nome del modello');
+  }catch(e){toast('Impossibile caricare la lista')}
+  b.disabled=false
+};
+$('bExp').onclick=()=>{
+  const d=JSON.parse(JSON.stringify(D));d.s.key='';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,1)],{type:'application/json'}));
+  a.download='companion-backup.json';a.click();toast('Backup creato (senza chiave API)')
+};
+$('bImp').onclick=()=>$('file').click();
+$('file').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const r=JSON.parse(await f.text());const key=D.s.key;
+    D={s:{...DEF.s,...r.s,key},c:{...DEF.c,...r.c},m:r.m||[]};save();openPanel();render();toast('Backup importato')
+  }catch(err){toast('File non valido')}
+  e.target.value=''
+};
+
+load();
+if(!localStorage.getItem(KEY))newStory();
+render();
+if(!D.s.key)openPanel();
+</script>
+</body>
+</html>
