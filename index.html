@@ -35,7 +35,7 @@ form textarea{resize:none;max-height:140px}
 #panel label{display:block;color:var(--dim);font-size:14px;margin:12px 0 4px}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .note{color:var(--dim);font-size:13px;margin:6px 0 0}
-#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--accent);color:#1a0f15;padding:8px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast{z-index:10;position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--accent);color:#1a0f15;padding:8px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}}
 </style>
@@ -68,9 +68,10 @@ form textarea{resize:none;max-height:140px}
   <label for="key">Chiave API</label>
   <input id="key" type="password" autocomplete="off" autocapitalize="off" placeholder="sk-or-...">
   <label for="model">Nome del modello</label>
-  <input id="model" list="models" autocomplete="off" autocapitalize="off">
-  <datalist id="models"></datalist>
-  <div class="row"><button id="bModels">Carica modelli gratuiti (OpenRouter)</button></div>
+  <input id="model" name="llm-model-id" autocomplete="off" autocapitalize="off">
+  <div class="row"><button id="bModels" type="button">Carica modelli gratuiti (OpenRouter)</button></div>
+  <p class="note" id="mstat"></p>
+  <select id="mlist" style="display:none;width:100%;margin-top:8px;font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px"></select>
   <p class="note">La chiave resta salvata solo su questo telefono.</p>
   <label for="temp">Creatività (temperatura): <span id="tv"></span></label>
   <input id="temp" type="range" min="0" max="1.5" step="0.05">
@@ -206,15 +207,21 @@ $('bClose').onclick=()=>{
   save();$('panel').classList.remove('open');render();toast('Salvato')
 };
 $('bModels').onclick=async()=>{
-  const b=$('bModels');b.disabled=true;
+  const b=$('bModels'),st=$('mstat'),sel=$('mlist');
+  b.disabled=true;st.textContent='Caricamento in corso...';
   try{
-    const r=await fetch('https://openrouter.ai/api/v1/models');const j=await r.json();
+    const r=await fetch('https://openrouter.ai/api/v1/models');
+    if(!r.ok)throw new Error('Errore '+r.status);
+    const j=await r.json();
     const ids=(j.data||[]).map(m=>m.id).filter(i=>i.endsWith(':free')).sort();
-    $('models').innerHTML=ids.map(i=>`<option value="${i}">`).join('');
-    toast(ids.length+' modelli gratuiti: tocca il campo Nome del modello');
-  }catch(e){toast('Impossibile caricare la lista')}
+    if(!ids.length)throw new Error('nessun modello gratuito trovato');
+    sel.innerHTML='<option value="">Scegli un modello...</option>'+ids.map(i=>`<option value="${i}">${i}</option>`).join('');
+    sel.style.display='block';
+    st.textContent=ids.length+' modelli gratuiti trovati. Scegline uno dal menu qui sotto.';
+  }catch(e){st.textContent='Impossibile caricare la lista ('+e.message+'). Scrivi il nome del modello a mano.'}
   b.disabled=false
 };
+$('mlist').onchange=e=>{if(e.target.value)$('model').value=e.target.value};
 $('bExp').onclick=()=>{
   const d=JSON.parse(JSON.stringify(D));d.s.key='';
   const a=document.createElement('a');
